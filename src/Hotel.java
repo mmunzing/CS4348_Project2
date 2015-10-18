@@ -3,10 +3,14 @@ import java.util.concurrent.Semaphore;
 //https://orajavasolutions.wordpress.com/tag/sleeping-barber-problem/
 
 public class Hotel {
-	
+	private static int roomNum = 1;
+	private static Semaphore s1 = new Semaphore(-1, true);
+	private static Semaphore s2 = new Semaphore(2, true);
+	private static Semaphore s3 = new Semaphore(-1, true);
 	
 	public static void main(String[] args) {
 		System.out.println("Simulation starts");
+		
 		Employee empArr[] = new Employee[2];
 		Thread empThreads[] = new Thread[2];
 		Bellhop bellArr[] = new Bellhop[2];
@@ -33,13 +37,16 @@ public class Hotel {
 	         guestThreads[k].start();
 	      }
 
+	    try {
+			Thread.sleep(1000);
+		} catch (InterruptedException e) {
+		}
 	    System.out.println("Simulation ends");
-	    System.exit(0);
 	}
 
-}
 
-class Employee implements Runnable {
+
+	class Employee implements Runnable {
 	private int empNum;
 	Employee(int num) {
 		this.empNum = num;
@@ -51,6 +58,14 @@ class Employee implements Runnable {
 			Thread.sleep(1000);
 		} 
 		catch (InterruptedException e) {
+		}
+		
+		try
+		{
+		   s1.acquire();
+		}
+		catch (InterruptedException e)
+		{
 		}
 	}	// End of run function
 	
@@ -82,7 +97,7 @@ class Bellhop implements Runnable {
 class Guest implements Runnable {
 	private int guestNum;
 	private int numBags;
-	protected static Semaphore waitForEmployee = new Semaphore(2, true );
+	protected Semaphore waitForEmployee = new Semaphore(2, true );
 	
 	Guest(int num){
 		this.guestNum = num;
@@ -105,10 +120,20 @@ class Guest implements Runnable {
 	   {
 	   }
 	   
-	   System.out.println( "Thread " + guestNum + " resuming" );
+	   randBags();
+	   if(numBags == 1)
+		   System.out.println( "Guest " + guestNum + " enters hotel with " + numBags + " bag" );
+	   else
+		   System.out.println( "Guest " + guestNum + " enters hotel with " + numBags + " bags" );
+	   try {
+		   Thread.sleep(1000);
+	   } 
+	   catch (InterruptedException e) {
+	   }
+	   
 	}
 	
-	public static void post() {
+	public void post() {
 	   waitForEmployee.release();
 	}
 	
@@ -116,8 +141,9 @@ class Guest implements Runnable {
 		return guestNum;
 	}
 	
-	private int randBags(){
+	private void randBags(){
 		Random randomNum = new Random();
-    	return randomNum.nextInt(6);
+    	this.numBags = randomNum.nextInt(6);
 	}
+}
 }
