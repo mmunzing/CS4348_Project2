@@ -3,10 +3,10 @@ import java.util.concurrent.Semaphore;
 //https://orajavasolutions.wordpress.com/tag/sleeping-barber-problem/
 
 public class Hotel {
-	private static int roomNum = 1;
-	private static Semaphore s1 = new Semaphore(-1, true);
-	private static Semaphore s2 = new Semaphore(2, true);
-	private static Semaphore s3 = new Semaphore(-1, true);
+	protected static int roomNum = 1;
+	protected static Semaphore s1 = new Semaphore(-1, true);
+	protected static Semaphore s2 = new Semaphore(2, true);
+	protected static Semaphore s3 = new Semaphore(-1, true);
 	
 	public static void main(String[] args) {
 		System.out.println("Simulation starts");
@@ -18,18 +18,21 @@ public class Hotel {
 		Guest guestArr[] = new Guest[25];
 	    Thread guestThreads[] = new Thread[25];
 	    
+	    // Create 2 front desk workers
 	    for(int i = 0; i < 2; i++){
 	    	empArr[i] = new Employee(i);
 	    	empThreads[i] = new Thread(empArr[i]);
 	    	empThreads[i].start();
 	    }
 	    
+	    // Create 2 Bellhops
 	    for(int j = 0; j < 2; j++){
 	    	bellArr[j] = new Bellhop(j);
 	    	bellThreads[j] = new Thread(bellArr[j]);
 	    	bellThreads[j].start();
 	    }
 	    
+	    // Create 25 Guests
 	    for(int k = 0; k < 25; k++ ) 
 	      {
 	    	 guestArr[k] = new Guest(k);
@@ -38,11 +41,14 @@ public class Hotel {
 	      }
 
 	    try {
-			Thread.sleep(1000);
+			Thread.sleep(3000);
 		} catch (InterruptedException e) {
 		}
+	    
 	    System.out.println("Simulation ends");
+	    System.exit(0);
 	}
+}
 
 
 
@@ -59,14 +65,17 @@ public class Hotel {
 		} 
 		catch (InterruptedException e) {
 		}
-		
+		Hotel.s1.release();
 		try
 		{
-		   s1.acquire();
+			Hotel.s2.acquire();
 		}
 		catch (InterruptedException e)
 		{
 		}
+		System.out.println("Front desk employee" + empNum + " registers guest " + 1 + " and assigns room " + Hotel.roomNum);
+		
+		Hotel.roomNum++;
 	}	// End of run function
 	
 	public void post() {
@@ -97,7 +106,8 @@ class Bellhop implements Runnable {
 class Guest implements Runnable {
 	private int guestNum;
 	private int numBags;
-	protected Semaphore waitForEmployee = new Semaphore(2, true );
+	private int roomNum;
+	//protected Semaphore waitForEmployee = new Semaphore(2, true );
 	
 	Guest(int num){
 		this.guestNum = num;
@@ -114,7 +124,7 @@ class Guest implements Runnable {
 	   
 	   try
 	   {
-	      waitForEmployee.acquire();
+	      Hotel.s1.acquire();
 	   }
 	   catch (InterruptedException e)
 	   {
@@ -134,11 +144,15 @@ class Guest implements Runnable {
 	}
 	
 	public void post() {
-	   waitForEmployee.release();
+	   Hotel.s1.release();
 	}
 	
 	private int getNum(){
 		return guestNum;
+	}
+	
+	private void setRoomNum(int num){
+		this.roomNum = num;
 	}
 	
 	private void randBags(){
@@ -146,4 +160,4 @@ class Guest implements Runnable {
     	this.numBags = randomNum.nextInt(6);
 	}
 }
-}
+
