@@ -6,21 +6,26 @@ import java.util.concurrent.Semaphore;
 
 public class Hotel {
 	protected static int roomNum = 1;
-	protected static Semaphore s1 = new Semaphore(0, true);
-	protected static Semaphore s2 = new Semaphore(0, true);
+	
+	protected static Semaphore waitForEmp = new Semaphore(2, true);
+	protected static Semaphore waitForBellhop = new Semaphore(2, true);
+	protected static Semaphore guestReady = new Semaphore(0, true);
+	protected static Semaphore keysReady = new Semaphore(0, true);
+	
 	protected static Semaphore checkinQSema = new Semaphore(1, true);
 	protected static Semaphore bellhopQSema = new Semaphore(1, true);
+	protected static Semaphore roomIncrement = new Semaphore(1, true);
 	
 	protected static Queue<Guest> checkinQ = new LinkedList<Guest>();
 	protected static Queue<Guest> bellhopQ = new LinkedList<Guest>();
 	
-	private void runHotel(){
+	private void runHotel() throws InterruptedException {
 		Employee empArr[] = new Employee[2];
 		Thread empThreads[] = new Thread[2];
 		Bellhop bellArr[] = new Bellhop[2];
 		Thread bellThreads[] = new Thread[2];
-		Guest guestArr[] = new Guest[25];
-	    Thread guestThreads[] = new Thread[25];
+		Guest guestArr[] = new Guest[10];		// Change these to 25 before turn in
+	    Thread guestThreads[] = new Thread[10];
 	    
 	    // Create 2 front desk workers
 	    for(int i = 0; i < empArr.length; i++){
@@ -42,21 +47,21 @@ public class Hotel {
 	        guestThreads[k] = new Thread( guestArr[k] );
 	        guestThreads[k].start();
 	    }
-		
+	    
+	    // Join the 25 guest threads back into the main class
+	    for(int l = 0; l < guestArr.length; l++){
+	    	guestThreads[l].join();
+	    	System.out.println("Guest " + l + " has joined");
+	    }
 	}	// End of runHotel function
 	
-	public static void main(String[] args) {
+	public static void main(String[] args) throws InterruptedException {
 		Hotel hotel = new Hotel();
 		
 		System.out.println("Simulation starts");
 		
 		hotel.runHotel();
 		
-	    try {
-			Thread.sleep(3000);
-		} catch (InterruptedException e) {
-		}
-	    
 	    System.out.println("Simulation ends");
 	    System.exit(0);
 	}
@@ -73,31 +78,33 @@ public class Hotel {
 	
 	public void run() {
 		System.out.println("Front desk employee " + empNum + " created");
-		try {
-			Thread.sleep(1000);
-		} 
-		catch (InterruptedException e) {
-		}
-		Hotel.s1.release();
-		try
-		{
-			Hotel.s2.acquire();
-			Hotel.checkinQSema.acquire();
-			helping = Hotel.checkinQ.remove();
-			Hotel.checkinQSema.release();
-		}
-		catch (InterruptedException e)
-		{
-		}
-		System.out.println("Front desk employee " + empNum + " registers guest " + helping.getNum() + " and assigns room " + Hotel.roomNum);
-		helping.setRoomNum(Hotel.roomNum);
-		
-		Hotel.roomNum++;
+		while(true){
+			try
+			{
+//				Thread.sleep(1000);
+				Hotel.guestReady.acquire();
+				
+				Hotel.checkinQSema.acquire();
+				helping = Hotel.checkinQ.remove();
+				Hotel.checkinQSema.release();
+				
+				Hotel.roomIncrement.acquire();
+				System.out.println("Front desk employee " + empNum + " registers guest " + helping.getNum() + " and assigns room " + Hotel.roomNum);
+				helping.setRoomNum(Hotel.roomNum);
+				
+				
+				
+				Hotel.roomNum++;
+				Hotel.roomIncrement.release();
+				Hotel.waitForEmp.release();
+				
+				
+			}
+			catch (InterruptedException e)
+			{
+			}
+		}	// End of while loop
 	}	// End of run function
-	
-	public void post() {
-		System.out.println("EmpPost");
-	}	// End of post function
 }	// End of Employee class
 
 class Bellhop implements Runnable {
@@ -108,16 +115,12 @@ class Bellhop implements Runnable {
 	
 	public void run() {
 		System.out.println("Bellhop " + bellNum + " created");
-		try {
-			Thread.sleep(1000);
-		} 
-		catch (InterruptedException e) {
-		}
+//		try {
+//			Thread.sleep(1000);
+//		} 
+//		catch (InterruptedException e) {
+//		}
 	}	// End of run function
-	
-	public void post() {
-		System.out.println("BellPost");
-	}	// End of post function
 }	// End of Bellhop class
 
 class Guest implements Runnable {
@@ -131,16 +134,10 @@ class Guest implements Runnable {
 	
 	public void run() {
 	   System.out.println( "Guest " + guestNum + " created" );
-	   try {
-		   Thread.sleep(1000);
-	   } 
-	   catch (InterruptedException e) {
-	   }
-	   
-	   
 	   try
 	   {
-	      Hotel.s1.acquire();
+//		  Thread.sleep(1000); 
+	      Hotel.waitForEmp.acquire();
 	      
 	      Hotel.checkinQSema.acquire();
 	      Hotel.checkinQ.add(this);
@@ -151,13 +148,14 @@ class Guest implements Runnable {
 			   System.out.println( "Guest " + guestNum + " enters hotel with " + numBags + " bag" );
 		   else
 			   System.out.println( "Guest " + guestNum + " enters hotel with " + numBags + " bags" );
-		   Thread.sleep(1000);
+//		   Thread.sleep(1000);
+		   
+		   Hotel.guestReady.release();
+		   
 	   }
 	   catch (InterruptedException e)
 	   {
 	   }	   
-	   
-	   Hotel.s1.release();
 	}	// End of run function
 	
 //	public void post() {
