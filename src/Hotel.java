@@ -79,7 +79,7 @@ public class Hotel {
 
 	class Employee implements Runnable {
 	private int empNum, guestNum;
-	//private Guest helping;
+	
 	Employee(int num) {
 		this.empNum = num;
 	}	// End of constructor
@@ -94,7 +94,7 @@ public class Hotel {
 				
 				Hotel.checkinQSema.acquire();
 				guestNum = Hotel.checkinQ.remove().getNum();
-				Hotel.roomIncrement.acquire();
+				
 				System.out.println("Front desk employee " + empNum + " registers guest " 
 						+ guestNum + " and assigns room " + Hotel.roomNum);
 				
@@ -168,9 +168,9 @@ class Guest implements Runnable {
 //		   Thread.sleep(1000);
 		   randBags();
 		   if(numBags == 1)
-			   System.out.println( "Guest " + guestNum + " enters hotel with " + numBags + " bag" );
+			   System.out.println("Guest " + guestNum + " enters hotel with " + numBags + " bag");
 		   else
-			   System.out.println( "Guest " + guestNum + " enters hotel with " + numBags + " bags" );
+			   System.out.println("Guest " + guestNum + " enters hotel with " + numBags + " bags");
 //		  Thread.sleep(1000); 
 	      
 		   Hotel.empAvailable.acquire();
