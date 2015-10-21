@@ -5,12 +5,27 @@ import java.util.concurrent.Semaphore;
 //https://orajavasolutions.wordpress.com/tag/sleeping-barber-problem/
 
 public class Hotel {
+	Employee empArr[] = new Employee[2];
+	Thread empThreads[] = new Thread[2];
+	Bellhop bellArr[] = new Bellhop[2];
+	Thread bellThreads[] = new Thread[2];
+	protected static Guest guestArr[] = new Guest[10];		// Change these to 25 before turn in
+    private Thread guestThreads[] = new Thread[10];
+    
 	protected static int roomNum = 1;
 	
-	protected static Semaphore waitForEmp = new Semaphore(2, true);
-	protected static Semaphore waitForBellhop = new Semaphore(2, true);
+	protected static Semaphore empAvailable = new Semaphore(2, true);
+	protected static Semaphore bellhopAvailable = new Semaphore(2, true);
+	protected static Semaphore waitForBellhop = new Semaphore(0, true);
 	protected static Semaphore guestReady = new Semaphore(0, true);
-	protected static Semaphore keysReady = new Semaphore(0, true);
+	protected static Semaphore giveKeys = new Semaphore(0, true);
+	protected static Semaphore bagsReady = new Semaphore(0 , true);
+	protected static Semaphore bagsGiven = new Semaphore(0 , true);
+	protected static Semaphore hop0Deliver = new Semaphore(0, true);
+	protected static Semaphore hop0BagsGiven = new Semaphore(0, true);
+	protected static Semaphore hop1Deliver = new Semaphore(0, true);
+	protected static Semaphore hop1BagsGiven = new Semaphore(0, true);
+	protected static Semaphore tipHop = new Semaphore(0, true);
 	
 	protected static Semaphore checkinQSema = new Semaphore(1, true);
 	protected static Semaphore bellhopQSema = new Semaphore(1, true);
@@ -20,13 +35,6 @@ public class Hotel {
 	protected static Queue<Guest> bellhopQ = new LinkedList<Guest>();
 	
 	private void runHotel() throws InterruptedException {
-		Employee empArr[] = new Employee[2];
-		Thread empThreads[] = new Thread[2];
-		Bellhop bellArr[] = new Bellhop[2];
-		Thread bellThreads[] = new Thread[2];
-		Guest guestArr[] = new Guest[10];		// Change these to 25 before turn in
-	    Thread guestThreads[] = new Thread[10];
-	    
 	    // Create 2 front desk workers
 	    for(int i = 0; i < empArr.length; i++){
 	    	empArr[i] = new Employee(i);
@@ -70,8 +78,8 @@ public class Hotel {
 
 
 	class Employee implements Runnable {
-	private int empNum;
-	private Guest helping;
+	private int empNum, guestNum;
+	//private Guest helping;
 	Employee(int num) {
 		this.empNum = num;
 	}	// End of constructor
@@ -85,20 +93,17 @@ public class Hotel {
 				Hotel.guestReady.acquire();
 				
 				Hotel.checkinQSema.acquire();
-				helping = Hotel.checkinQ.remove();
+				guestNum = Hotel.checkinQ.remove().getNum();
+				Hotel.roomIncrement.acquire();
+				System.out.println("Front desk employee " + empNum + " registers guest " 
+						+ guestNum + " and assigns room " + Hotel.roomNum);
+				
+				Hotel.guestArr[guestNum].setRoomNum(Hotel.roomNum, empNum);
+				Hotel.roomNum++;
 				Hotel.checkinQSema.release();
 				
-				Hotel.roomIncrement.acquire();
-				System.out.println("Front desk employee " + empNum + " registers guest " + helping.getNum() + " and assigns room " + Hotel.roomNum);
-				helping.setRoomNum(Hotel.roomNum);
-				
-				
-				
-				Hotel.roomNum++;
-				Hotel.roomIncrement.release();
-				Hotel.waitForEmp.release();
-				
-				
+				Hotel.giveKeys.release();
+				Hotel.empAvailable.release();
 			}
 			catch (InterruptedException e)
 			{
@@ -108,25 +113,49 @@ public class Hotel {
 }	// End of Employee class
 
 class Bellhop implements Runnable {
-	private int bellNum;
+	private int bellNum, guestNum;
+	
 	Bellhop (int num) {
 		this.bellNum = num;
 	}	// End of constructor
 	
 	public void run() {
 		System.out.println("Bellhop " + bellNum + " created");
-//		try {
-//			Thread.sleep(1000);
-//		} 
-//		catch (InterruptedException e) {
-//		}
+		while(true){
+			try {
+//				Thread.sleep(1000);
+				Hotel.bagsReady.acquire();
+				
+				Hotel.bellhopQSema.acquire();
+				guestNum = Hotel.bellhopQ.remove().getNum();
+				Hotel.guestArr[guestNum].setBellNum(bellNum);
+				Hotel.bellhopQSema.release();
+				
+				System.out.println("Bellhop " + bellNum + " receives bags from guest " + guestNum);
+				Hotel.bagsGiven.release();
+				
+				if(bellNum == 0){
+					Hotel.hop0Deliver.acquire();
+					System.out.println("Bellhop 0 delivers bags to guest " + guestNum);
+					Hotel.hop0BagsGiven.release();
+				}
+				else {
+					Hotel.hop1Deliver.acquire();
+					System.out.println("Bellhop 1 delivers bags to guest " + guestNum);
+					Hotel.hop1BagsGiven.release();
+				}
+				
+				Hotel.tipHop.acquire();
+				Hotel.bellhopAvailable.release();
+			} 
+			catch (InterruptedException e) {
+			}
+		}
 	}	// End of run function
 }	// End of Bellhop class
 
 class Guest implements Runnable {
-	private int guestNum;
-	private int numBags;
-	private int roomNum;
+	private int guestNum, numBags, roomNum, bellNum,  empNum;
 	
 	Guest(int num){
 		this.guestNum = num;
@@ -136,43 +165,87 @@ class Guest implements Runnable {
 	   System.out.println( "Guest " + guestNum + " created" );
 	   try
 	   {
-//		  Thread.sleep(1000); 
-	      Hotel.waitForEmp.acquire();
-	      
-	      Hotel.checkinQSema.acquire();
-	      Hotel.checkinQ.add(this);
-	      Hotel.checkinQSema.release();
-	      
-	      randBags();
+//		   Thread.sleep(1000);
+		   randBags();
 		   if(numBags == 1)
 			   System.out.println( "Guest " + guestNum + " enters hotel with " + numBags + " bag" );
 		   else
 			   System.out.println( "Guest " + guestNum + " enters hotel with " + numBags + " bags" );
-//		   Thread.sleep(1000);
+//		  Thread.sleep(1000); 
+	      
+		   Hotel.empAvailable.acquire();
 		   
-		   Hotel.guestReady.release();
+		   // Add guest to checkin queue using a mutex. 
+		   Hotel.checkinQSema.acquire();
+		   Hotel.checkinQ.add(this);
+		   Hotel.checkinQSema.release();
 		   
+	       Hotel.guestReady.release();
+	       Hotel.giveKeys.acquire();
+	       
+	       System.out.println("Guest " + guestNum + " receives room key for room " + roomNum 
+	    		   + " from front desk employee " + empNum);
+	       //Thread.sleep(1000);
+	       
+	       if(numBags > 2){
+	    	   System.out.println("Guest " + guestNum + " requests help with bags");
+	    	   Hotel.bellhopAvailable.acquire();
+	    	   
+	    	   Hotel.bellhopQSema.acquire();
+	    	   Hotel.bellhopQ.add(this);
+	    	   Hotel.bellhopQSema.release();
+	    	   
+	    	   Hotel.bagsReady.release();
+	    	   Hotel.bagsGiven.acquire();
+	    	   
+	    	   System.out.println("Guest " + guestNum + " enters room " + roomNum);
+	    	   
+	    	   if(bellNum == 0){
+	    		   Hotel.hop0Deliver.release();
+	    		   Hotel.hop0BagsGiven.acquire();
+	    		   System.out.println("Guest " + guestNum + " receives bags from bellhop 0 and gives tip");
+	    	   }
+	    	   else {
+	    		   Hotel.hop1Deliver.release();
+	    		   Hotel.hop1BagsGiven.acquire();
+	    		   System.out.println("Guest " + guestNum + " receives bags from bellhop 1 and gives tip");
+	    	   }
+	    	   
+	    	   Hotel.tipHop.release();
+	    	   System.out.println("Guest " + guestNum + " has retired");
+	       }
+	       else {
+	    	   System.out.println("Guest " + guestNum + " enters room " + roomNum);
+	    	   System.out.println("Guest " + guestNum + " has retired");
+	    	   
+	       }
+	       
 	   }
 	   catch (InterruptedException e)
 	   {
 	   }	   
 	}	// End of run function
 	
-//	public void post() {
-//	   Hotel.s1.release();
-//	}	// End of post function
-	
 	public int getNum(){
 		return guestNum;
 	}	// End of getNum function
 	
-	public void setRoomNum(int num){
-		this.roomNum = num;
+	public void setRoomNum(int roomNum, int empNum){
+		this.roomNum = roomNum;
+		this.empNum = empNum;
 	}	// End of setRoomNum function
 	
 	public int getRoomNum(){
 		return this.roomNum;
 	}	// End of getRoomNum function
+	
+	public void setBellNum(int num){
+		this.bellNum = num;
+	}	// End of setBellNum function
+	
+	public int getBellNum(){
+		return this.bellNum;
+	}
 	
 	private void randBags(){
 		Random randomNum = new Random();
