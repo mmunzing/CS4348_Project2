@@ -2,7 +2,7 @@ import java.util.LinkedList;
 import java.util.Queue;
 import java.util.Random;
 import java.util.concurrent.Semaphore;
-//https://orajavasolutions.wordpress.com/tag/sleeping-barber-problem/
+
 
 public class Hotel {
 	Employee empArr[] = new Employee[2];
@@ -18,7 +18,8 @@ public class Hotel {
 	protected static Semaphore bellhopAvailable = new Semaphore(2, true);
 	protected static Semaphore waitForBellhop = new Semaphore(0, true);
 	protected static Semaphore guestReady = new Semaphore(0, true);
-	protected static Semaphore giveKeys = new Semaphore(0, true);
+	protected static Semaphore prepareKeys = new Semaphore(0, true);
+	protected static Semaphore waitOnKeys = new Semaphore(0, true);
 	protected static Semaphore bagsReady = new Semaphore(0 , true);
 	protected static Semaphore bagsGiven = new Semaphore(0 , true);
 	protected static Semaphore hop0Deliver = new Semaphore(0, true);
@@ -102,7 +103,8 @@ public class Hotel {
 				Hotel.roomNum++;
 				Hotel.checkinQSema.release();
 				
-				Hotel.giveKeys.release();
+				Hotel.prepareKeys.release();
+				Hotel.waitOnKeys.acquire();
 				Hotel.empAvailable.release();
 			}
 			catch (InterruptedException e)
@@ -181,10 +183,12 @@ class Guest implements Runnable {
 		   Hotel.checkinQSema.release();
 		   
 	       Hotel.guestReady.release();
-	       Hotel.giveKeys.acquire();
+	       Hotel.prepareKeys.acquire();
 	       
 	       System.out.println("Guest " + guestNum + " receives room key for room " + roomNum 
 	    		   + " from front desk employee " + empNum);
+	       
+	       Hotel.waitOnKeys.release();
 	       //Thread.sleep(1000);
 	       
 	       if(numBags > 2){
